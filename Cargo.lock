@@ -8829,6 +8829,7 @@ dependencies = [
  "tokio",
  "toml",
  "tracing",
+ "url",
  "vergen",
  "vergen-git2",
 ]
