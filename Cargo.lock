@@ -10016,6 +10016,7 @@ dependencies = [
  "reth-db",
  "reth-db-api",
  "reth-downloaders",
+ "reth-era",
  "reth-era-downloader",
  "reth-era-utils",
  "reth-ethereum-consensus",
