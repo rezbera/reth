@@ -73,13 +73,13 @@ macro_rules! create_superchain_specs {
             /// All supported superchains, including both older and newer naming,
             /// for backwards compatibility
             pub const SUPPORTED_CHAINS: &'static [&'static str] = &[
-                "dev",
                 "optimism",
                 "optimism_sepolia",
                 "optimism-sepolia",
                 "base",
                 "base_sepolia",
                 "base-sepolia",
+                "dev",
                 $(
                     $crate::key_for!($name, $env),
                 )+
@@ -88,11 +88,11 @@ macro_rules! create_superchain_specs {
             /// Parses the chain into an [`$crate::OpChainSpec`], if recognized.
             pub fn generated_chain_value_parser(s: &str) -> Option<alloc::sync::Arc<$crate::OpChainSpec>> {
                 match s {
-                    "dev"                                   => Some($crate::OP_DEV.clone()),
                     "optimism"                              => Some($crate::OP_MAINNET.clone()),
                     "optimism_sepolia" | "optimism-sepolia" => Some($crate::OP_SEPOLIA.clone()),
                     "base"                                  => Some($crate::BASE_MAINNET.clone()),
                     "base_sepolia" | "base-sepolia"         => Some($crate::BASE_SEPOLIA.clone()),
+                    "dev"                                   => Some($crate::OP_DEV.clone()),
                     $(
                         $crate::key_for!($name, $env)        => Some($crate::[<$name:upper _ $env:upper>].clone()),
                     )+
