@@ -735,6 +735,7 @@ impl From<Genesis> for ChainSpec {
             paris_block_and_final_difficulty,
             deposit_contract,
             blob_params,
+            base_fee_params: BaseFeeParamsKind::Constant(BaseFeeParams::berachain()),
             ..Default::default()
         }
     }
