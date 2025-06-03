@@ -1,0 +1,46 @@
+[package]
+name = "reth-berachain-chainspec"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+exclude.workspace = true
+
+[dependencies]
+# reth
+reth-chainspec.workspace = true
+reth-ethereum-forks.workspace = true
+reth-primitives-traits.workspace = true
+reth-network-peers.workspace = true
+
+# op-reth
+reth-optimism-forks.workspace = true
+reth-optimism-primitives.workspace = true
+
+# ethereum
+alloy-chains.workspace = true
+alloy-genesis.workspace = true
+alloy-primitives.workspace = true
+alloy-consensus.workspace = true
+alloy-eips.workspace = true
+alloy-hardforks.workspace = true
+
+# op
+op-alloy-rpc-types.workspace = true
+
+serde = { workspace = true, optional = true }
+serde_json.workspace = true
+
+# io
+tar-no-std = { workspace = true, optional = true }
+miniz_oxide = { workspace = true, features = ["with-alloc"], optional = true }
+
+# misc
+derive_more.workspace = true
+paste = { workspace = true, optional = true }
+thiserror = { workspace = true, optional = true }
+
+[lints]
+workspace = true

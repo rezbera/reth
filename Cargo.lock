@@ -7132,6 +7132,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "reth-berachain-chainspec"
+version = "1.4.6"
+dependencies = [
+ "alloy-chains",
+ "alloy-consensus",
+ "alloy-eips",
+ "alloy-genesis",
+ "alloy-hardforks",
+ "alloy-primitives",
+ "derive_more",
+ "miniz_oxide",
+ "op-alloy-rpc-types",
+ "paste",
+ "reth-chainspec",
+ "reth-ethereum-forks",
+ "reth-network-peers",
+ "reth-optimism-forks",
+ "reth-optimism-primitives",
+ "reth-primitives-traits",
+ "serde",
+ "serde_json",
+ "tar-no-std",
+ "thiserror 2.0.12",
+]
+
+[[package]]
 name = "reth-chain-state"
 version = "1.4.6"
 dependencies = [
