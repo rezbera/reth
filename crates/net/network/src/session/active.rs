@@ -16,7 +16,7 @@ use crate::{
     session::{
         conn::EthRlpxConnection,
         handle::{ActiveSessionMessage, SessionCommand},
-        SessionId,
+        BlockRangeInfo, SessionId,
     },
 };
 use alloy_primitives::Sealable;
@@ -25,7 +25,7 @@ use metrics::Gauge;
 use reth_eth_wire::{
     errors::{EthHandshakeError, EthStreamError},
     message::{EthBroadcastMessage, RequestPair},
-    Capabilities, DisconnectP2P, DisconnectReason, EthMessage, NetworkPrimitives,
+    Capabilities, DisconnectP2P, DisconnectReason, EthMessage, NetworkPrimitives, NewBlockPayload,
 };
 use reth_eth_wire_types::RawCapabilityMessage;
 use reth_metrics::common::mpsc::MeteredPollSender;
@@ -114,6 +114,11 @@ pub(crate) struct ActiveSession<N: NetworkPrimitives> {
     /// Used to reserve a slot to guarantee that the termination message is delivered
     pub(crate) terminate_message:
         Option<(PollSender<ActiveSessionMessage<N>>, ActiveSessionMessage<N>)>,
+    /// The eth69 range info for the remote peer.
+    pub(crate) range_info: Option<BlockRangeInfo>,
+    /// The eth69 range info for the local node (this node).
+    /// This represents the range of blocks that this node can serve to other peers.
+    pub(crate) local_range_info: BlockRangeInfo,
 }
 
 impl<N: NetworkPrimitives> ActiveSession<N> {
@@ -172,6 +177,7 @@ impl<N: NetworkPrimitives> ActiveSession<N> {
                 if let Some(req) = self.inflight_requests.remove(&request_id) {
                     match req.request {
                         RequestState::Waiting(PeerRequest::$item { response, .. }) => {
+                            trace!(peer_id=?self.remote_peer_id, ?request_id, "received response from peer");
                             let _ = response.send(Ok(message));
                             self.update_request_timeout(req.timestamp, Instant::now());
                         }
@@ -184,6 +190,7 @@ impl<N: NetworkPrimitives> ActiveSession<N> {
                         }
                     }
                 } else {
+                    trace!(peer_id=?self.remote_peer_id, ?request_id, "received response to unknown request");
                     // we received a response to a request we never sent
                     self.on_bad_message();
                 }
@@ -201,8 +208,10 @@ impl<N: NetworkPrimitives> ActiveSession<N> {
                 self.try_emit_broadcast(PeerMessage::NewBlockHashes(msg)).into()
             }
             EthMessage::NewBlock(msg) => {
-                let block =
-                    NewBlockMessage { hash: msg.block.header().hash_slow(), block: Arc::new(*msg) };
+                let block = NewBlockMessage {
+                    hash: msg.block().header().hash_slow(),
+                    block: Arc::new(*msg),
+                };
                 self.try_emit_broadcast(PeerMessage::NewBlock(block)).into()
             }
             EthMessage::Transactions(msg) => {
@@ -260,7 +269,11 @@ impl<N: NetworkPrimitives> ActiveSession<N> {
                 on_response!(resp, GetReceipts)
             }
             EthMessage::BlockRangeUpdate(msg) => {
-                self.try_emit_broadcast(PeerMessage::BlockRangeUpdated(msg)).into()
+                if let Some(range_info) = self.range_info.as_ref() {
+                    range_info.update(msg.earliest, msg.latest, msg.latest_hash);
+                }
+
+                OnIncomingMessageOutcome::Ok
             }
             EthMessage::Other(bytes) => self.try_emit_broadcast(PeerMessage::Other(bytes)).into(),
         }
@@ -269,6 +282,8 @@ impl<N: NetworkPrimitives> ActiveSession<N> {
     /// Handle an internal peer request that will be sent to the remote.
     fn on_internal_peer_request(&mut self, request: PeerRequest<N>, deadline: Instant) {
         let request_id = self.next_id();
+
+        trace!(?request, peer_id=?self.remote_peer_id, ?request_id, "sending request to peer");
         let msg = request.create_request_message(request_id);
         self.queued_outgoing.push_back(msg.into());
         let req = InflightRequest {
@@ -985,6 +1000,12 @@ mod tests {
                         )),
                         protocol_breach_request_timeout: PROTOCOL_BREACH_REQUEST_TIMEOUT,
                         terminate_message: None,
+                        range_info: None,
+                        local_range_info: BlockRangeInfo::new(
+                            0,
+                            1000,
+                            alloy_primitives::B256::ZERO,
+                        ),
                     }
                 }
                 ev => {
