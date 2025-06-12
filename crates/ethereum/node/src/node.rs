@@ -3,7 +3,7 @@
 pub use crate::{payload::EthereumPayloadBuilder, EthereumEngineValidator};
 use crate::{EthEngineTypes, EthEvmConfig};
 use alloy_eips::{eip7840::BlobParams, merge::EPOCH_SLOTS};
-use reth_chainspec::{ChainSpec, EthChainSpec, EthereumHardforks};
+use reth_chainspec::{ChainSpec, EthChainSpec, EthereumHardforks, Hardforks};
 use reth_consensus::{ConsensusError, FullConsensus};
 use reth_ethereum_consensus::EthBeaconConsensus;
 use reth_ethereum_engine_primitives::{
@@ -418,7 +418,7 @@ pub struct EthereumNetworkBuilder {
 
 impl<Node, Pool> NetworkBuilder<Node, Pool> for EthereumNetworkBuilder
 where
-    Node: FullNodeTypes<Types: NodeTypes<ChainSpec = ChainSpec, Primitives = EthPrimitives>>,
+    Node: FullNodeTypes<Types: NodeTypes<ChainSpec: Hardforks, Primitives = EthPrimitives>>,
     Pool: TransactionPool<
             Transaction: PoolTransaction<
                 Consensus = TxTy<Node::Types>,
