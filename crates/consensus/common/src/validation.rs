@@ -277,6 +277,7 @@ pub fn validate_against_parent_eip1559_base_fee<
                 chain_spec.base_fee_params_at_timestamp(header.timestamp()),
             )
         };
+        let expected_base_fee = expected_base_fee.max(1_000_000_000);
         if expected_base_fee != base_fee {
             return Err(ConsensusError::BaseFeeDiff(GotExpected {
                 expected: expected_base_fee,
