@@ -257,6 +257,7 @@ pub fn validate_against_parent_eip1559_base_fee<
     parent: &H,
     chain_spec: &ChainSpec,
 ) -> Result<(), ConsensusError> {
+    tracing::info!("rez: calling validate_against_parent_eip1559_base_fee");
     if chain_spec.is_london_active_at_block(header.number()) {
         let base_fee = header.base_fee_per_gas().ok_or(ConsensusError::BaseFeeMissing)?;
 
@@ -276,6 +277,7 @@ pub fn validate_against_parent_eip1559_base_fee<
                 chain_spec.base_fee_params_at_timestamp(header.timestamp()),
             )
         };
+        let expected_base_fee = expected_base_fee.max(1_000_000_000);
         if expected_base_fee != base_fee {
             return Err(ConsensusError::BaseFeeDiff(GotExpected {
                 expected: expected_base_fee,
