@@ -1,7 +1,7 @@
 use crate::{ChainSpec, DepositContract};
 use alloc::{boxed::Box, vec::Vec};
 use alloy_chains::Chain;
-use alloy_consensus::Header;
+use alloy_consensus::{BlockHeader, Header};
 use alloy_eips::{eip1559::BaseFeeParams, eip7840::BlobParams};
 use alloy_genesis::Genesis;
 use alloy_primitives::{B256, U256};
@@ -65,6 +65,23 @@ pub trait EthChainSpec: Send + Sync + Unpin + Debug {
 
     /// Returns the final total difficulty if the Paris hardfork is known.
     fn final_paris_total_difficulty(&self) -> Option<U256>;
+
+    /// Calculate base fee for next block according to the EIP-1559 spec.
+    ///
+    /// Returns `None` if no base fee is set, indicating no EIP-1559 support.
+    fn next_block_base_fee<H>(&self, parent: &H, target_timestamp: u64) -> Option<u64>
+    where
+        Self: Sized,
+        H: BlockHeader,
+    {
+        use alloy_eips::calc_next_block_base_fee;
+        Some(calc_next_block_base_fee(
+            parent.gas_used(),
+            parent.gas_limit(),
+            parent.base_fee_per_gas()?,
+            self.base_fee_params_at_timestamp(target_timestamp),
+        ))
+    }
 }
 
 impl EthChainSpec for ChainSpec {
