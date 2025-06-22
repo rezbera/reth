@@ -67,16 +67,19 @@ pub trait EthChainSpec: Send + Sync + Unpin + Debug {
     fn final_paris_total_difficulty(&self) -> Option<U256>;
 
     /// See [`calc_next_block_base_fee`].
-    fn next_block_base_fee<H>(&self, parent: &H, timestamp: u64) -> u64
+    ///
+    /// Returns `None` if no base fee is set, indicating no EIP-1559 support.
+    fn next_block_base_fee<H>(&self, parent: &H, target_timestamp: u64) -> Option<u64>
     where
+        Self: Sized,
         H: BlockHeader,
     {
-        calc_next_block_base_fee(
+        Some(calc_next_block_base_fee(
             parent.gas_used(),
             parent.gas_limit(),
-            parent.base_fee_per_gas().unwrap_or_default(),
-            self.base_fee_params_at_timestamp(timestamp),
-        )
+            parent.base_fee_per_gas()?,
+            self.base_fee_params_at_timestamp(target_timestamp),
+        ))
     }
 }
 
