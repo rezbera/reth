@@ -202,7 +202,7 @@ pub fn next_block_base_fee(
     } else {
         Ok(chain_spec
             .next_block_base_fee(&parent, timestamp)
-            .ok_or(EIP1559ParamError::NoEIP1559Params)?)
+            .unwrap_or_default())
     }
 }
 
@@ -268,7 +268,7 @@ mod tests {
             ..Default::default()
         };
         let base_fee = next_block_base_fee(&op_chain_spec, &parent, 1800000005);
-        assert_eq!(base_fee.unwrap(), op_chain_spec.next_block_base_fee(&parent, 0).unwrap());
+        assert_eq!(base_fee.unwrap(), op_chain_spec.next_block_base_fee(&parent, 0).unwrap_or_default());
     }
 
     #[test]
