@@ -8,7 +8,51 @@ use alloy_rpc_types_eth::{Log, ReceiptWithBloom, TransactionReceipt};
 use reth_ethereum_primitives::{Receipt, TransactionSigned, TxType};
 use reth_primitives_traits::SignedTransaction;
 
-/// Builds an [`TransactionReceipt`] obtaining the inner receipt envelope from the given closure.
+/// Receipt building strategy for different transaction and receipt types.
+/// 
+/// This trait abstracts receipt building to allow custom transaction envelopes
+/// to integrate with the RPC layer while reusing the core receipt building logic.
+pub trait ReceiptBuilder<Tx, R> {
+    /// The envelope type for the receipt response.
+    type ReceiptEnvelope;
+    
+    /// Build a transaction receipt from transaction and receipt data.
+    fn build_transaction_receipt(
+        &self,
+        tx: &Tx,
+        meta: TransactionMeta,
+        receipt: &R,
+        all_receipts: &[R],
+        blob_params: Option<BlobParams>,
+    ) -> EthResult<TransactionReceipt<Self::ReceiptEnvelope>>;
+}
+
+/// Ethereum receipt builder strategy.
+/// 
+/// Uses the standard Ethereum receipt building logic with EthereumTxEnvelope.
+#[derive(Debug, Default, Clone)]
+pub struct EthReceiptBuilderStrategy;
+
+impl ReceiptBuilder<TransactionSigned, Receipt> for EthReceiptBuilderStrategy {
+    type ReceiptEnvelope = ReceiptEnvelope<Log>;
+
+    fn build_transaction_receipt(
+        &self,
+        tx: &TransactionSigned,
+        meta: TransactionMeta,
+        receipt: &Receipt,
+        all_receipts: &[Receipt],
+        blob_params: Option<BlobParams>,
+    ) -> EthResult<TransactionReceipt<Self::ReceiptEnvelope>> {
+        Ok(EthReceiptBuilder::new(tx, meta, receipt, all_receipts, blob_params)?.build())
+    }
+}
+
+/// Builds a [`TransactionReceipt`] obtaining the inner receipt envelope from the given closure.
+/// 
+/// This is the core receipt building function that handles all the common logic for
+/// constructing receipts. The envelope building strategy is provided as a closure
+/// to allow different chains to customize the envelope type.
 pub fn build_receipt<R, T, E>(
     transaction: &T,
     meta: TransactionMeta,
