@@ -8,6 +8,77 @@ use alloy_rpc_types_eth::{Log, ReceiptWithBloom, TransactionReceipt};
 use reth_ethereum_primitives::{Receipt, TransactionSigned, TxType};
 use reth_primitives_traits::SignedTransaction;
 
+
+/// # Generic Receipt Building Pattern
+///
+/// This module demonstrates how to integrate custom transaction envelopes with reth's RPC layer:
+///
+/// ## For Custom Chains (e.g., Berachain):
+///
+/// ```rust,ignore
+/// // 1. Define your custom receipt builder
+/// pub struct BerachainReceiptBuilderStrategy;
+///
+/// impl RpcReceiptBuilder<BerachainTxEnvelope, Receipt> for BerachainReceiptBuilderStrategy {
+///     type ReceiptEnvelope = BerachainReceiptEnvelope; // Your custom envelope type
+///     
+///     fn build_transaction_receipt(
+///         &self,
+///         tx: &BerachainTxEnvelope,
+///         meta: TransactionMeta,
+///         receipt: &Receipt,
+///         all_receipts: &[Receipt],
+///         blob_params: Option<BlobParams>,
+///     ) -> EthResult<TransactionReceipt<Self::ReceiptEnvelope>> {
+///         match tx {
+///             BerachainTxEnvelope::Ethereum(eth_tx) => {
+///                 // Delegate to Ethereum builder for standard transactions
+///                 let eth_builder = EthReceiptBuilderStrategy;
+///                 let eth_result = eth_builder.build_transaction_receipt(
+///                     eth_tx, meta, receipt, all_receipts, blob_params
+///                 )?;
+///                 // Convert result to your envelope type
+///                 Ok(convert_eth_to_berachain_receipt(eth_result))
+///             }
+///             BerachainTxEnvelope::SystemReward(pol_tx) => {
+///                 // Custom logic for POL/SystemReward transactions
+///                 build_system_reward_receipt(pol_tx, meta, receipt, all_receipts)
+///             }
+///         }
+///     }
+/// }
+///
+/// // 2. Implement ReceiptBuilderProvider for your API type
+/// impl<Provider, Pool, Network, EvmConfig> ReceiptBuilderProvider<BerachainTxEnvelope, Receipt> 
+/// for BerachainEthApi<Provider, Pool, Network, EvmConfig> 
+/// {
+///     type Builder = BerachainReceiptBuilderStrategy;
+///     
+///     fn receipt_builder(&self) -> &Self::Builder {
+///         &BERACHAIN_BUILDER // Your static instance
+///     }
+/// }
+///
+/// // 3. The generic LoadReceipt implementation will automatically work!
+/// // No need to reimplement LoadReceipt - it works with any transaction type
+/// // that has a ReceiptBuilderProvider implementation.
+/// ```
+///
+/// ## Key Benefits:
+/// - **Reuse**: Core receipt logic is shared across all chains
+/// - **Flexibility**: Each chain can customize transaction-specific receipt building
+/// - **Type Safety**: Full compile-time verification of receipt envelope types
+/// - **Backward Compatibility**: Existing Ethereum code continues to work unchanged
+
+/// Trait for providing a receipt builder strategy.
+pub trait ReceiptBuilderProvider<Tx, R> {
+    /// The receipt builder type.
+    type Builder: RpcReceiptBuilder<Tx, R>;
+
+    /// Get the receipt builder instance.
+    fn receipt_builder(&self) -> &Self::Builder;
+}
+
 /// RPC receipt response building strategy for different transaction and receipt types.
 /// 
 /// This trait abstracts RPC receipt response building to allow custom transaction envelopes
