@@ -8,11 +8,14 @@ use alloy_rpc_types_eth::{Log, ReceiptWithBloom, TransactionReceipt};
 use reth_ethereum_primitives::{Receipt, TransactionSigned, TxType};
 use reth_primitives_traits::SignedTransaction;
 
-/// Receipt building strategy for different transaction and receipt types.
+/// RPC receipt response building strategy for different transaction and receipt types.
 /// 
-/// This trait abstracts receipt building to allow custom transaction envelopes
+/// This trait abstracts RPC receipt response building to allow custom transaction envelopes
 /// to integrate with the RPC layer while reusing the core receipt building logic.
-pub trait ReceiptBuilder<Tx, R> {
+/// 
+/// Note: This is different from alloy's `ReceiptBuilder` which operates at the EVM execution
+/// layer. This trait operates at the RPC response layer.
+pub trait RpcReceiptBuilder<Tx, R> {
     /// The envelope type for the receipt response.
     type ReceiptEnvelope;
     
@@ -33,7 +36,7 @@ pub trait ReceiptBuilder<Tx, R> {
 #[derive(Debug, Default, Clone)]
 pub struct EthReceiptBuilderStrategy;
 
-impl ReceiptBuilder<TransactionSigned, Receipt> for EthReceiptBuilderStrategy {
+impl RpcReceiptBuilder<TransactionSigned, Receipt> for EthReceiptBuilderStrategy {
     type ReceiptEnvelope = ReceiptEnvelope<Log>;
 
     fn build_transaction_receipt(

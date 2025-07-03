@@ -3,13 +3,13 @@
 //! This module provides a generic receipt building strategy pattern that allows
 //! custom transaction envelopes to integrate with the RPC layer while reusing
 //! core receipt building logic. The implementation is generic over transaction
-//! and receipt types, delegating type-specific logic to ReceiptBuilder implementations.
+//! and receipt types, delegating type-specific logic to RpcReceiptBuilder implementations.
 
 use alloy_consensus::transaction::TransactionMeta;
 use reth_chainspec::{ChainSpecProvider, EthChainSpec};
 use reth_ethereum_primitives::{Receipt, TransactionSigned};
 use reth_rpc_eth_api::{helpers::LoadReceipt, FromEthApiError, RpcNodeCoreExt, RpcReceipt};
-use reth_rpc_eth_types::{EthApiError, receipt::{ReceiptBuilder, EthReceiptBuilderStrategy}};
+use reth_rpc_eth_types::{EthApiError, receipt::{RpcReceiptBuilder, EthReceiptBuilderStrategy}};
 use reth_storage_api::{BlockReader, ReceiptProvider, TransactionsProvider};
 
 use crate::EthApi;
@@ -24,7 +24,7 @@ use crate::EthApi;
 /// // 1. Define your custom receipt builder
 /// pub struct BerachainReceiptBuilderStrategy;
 /// 
-/// impl ReceiptBuilder<BerachainTxEnvelope, Receipt> for BerachainReceiptBuilderStrategy {
+/// impl RpcReceiptBuilder<BerachainTxEnvelope, Receipt> for BerachainReceiptBuilderStrategy {
 ///     type ReceiptEnvelope = BerachainReceiptEnvelope; // Your custom envelope type
 ///     
 ///     fn build_transaction_receipt(
@@ -78,7 +78,7 @@ use crate::EthApi;
 /// Trait for providing a receipt builder strategy.
 pub(super) trait ReceiptBuilderProvider<Tx, R> {
     /// The receipt builder type.
-    type Builder: ReceiptBuilder<Tx, R>;
+    type Builder: RpcReceiptBuilder<Tx, R>;
     
     /// Get the receipt builder instance.
     fn receipt_builder(&self) -> &Self::Builder;
@@ -101,7 +101,7 @@ where
 
 // Type aliases to simplify complex associated type constraints
 type ApiReceiptBuilder<Api, Tx, R> = <Api as ReceiptBuilderProvider<Tx, R>>::Builder;
-type BuilderEnvelope<Api, Tx, R> = <ApiReceiptBuilder<Api, Tx, R> as ReceiptBuilder<Tx, R>>::ReceiptEnvelope;
+type BuilderEnvelope<Api, Tx, R> = <ApiReceiptBuilder<Api, Tx, R> as RpcReceiptBuilder<Tx, R>>::ReceiptEnvelope;
 
 // Generic implementation that works with any transaction/receipt type
 impl<Provider, Pool, Network, EvmConfig, Tx, R> LoadReceipt for EthApi<Provider, Pool, Network, EvmConfig>
