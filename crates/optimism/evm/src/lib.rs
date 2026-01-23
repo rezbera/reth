@@ -20,7 +20,8 @@ use op_alloy_consensus::EIP1559ParamError;
 use op_revm::{OpSpecId, OpTransaction};
 use reth_chainspec::EthChainSpec;
 use reth_evm::{
-    eth::NextEvmEnvAttributes, precompiles::PrecompilesMap, ConfigureEvm, EvmEnv, TransactionEnv,
+    eth::NextEvmEnvAttributes, precompiles::PrecompilesMap, ConfigureEvm, EvmEnv, EvmLimitParams,
+    TransactionEnv,
 };
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_forks::OpHardforks;
@@ -159,12 +160,15 @@ where
         &self.block_assembler
     }
 
-    fn evm_env(&self, header: &Header) -> Result<EvmEnv<OpSpecId>, Self::Error> {
-        Ok(EvmEnv::for_op_block(header, self.chain_spec(), self.chain_spec().chain().id())
-            .with_limits(self.chain_spec().evm_limit_params_at_timestamp(header.timestamp())))
+    fn evm_limit_params_at_timestamp(&self, timestamp: u64) -> EvmLimitParams {
+        self.chain_spec().evm_limit_params_at_timestamp(timestamp)
     }
 
-    fn next_evm_env(
+    fn evm_env_without_limits(&self, header: &Header) -> Result<EvmEnv<OpSpecId>, Self::Error> {
+        Ok(EvmEnv::for_op_block(header, self.chain_spec(), self.chain_spec().chain().id()))
+    }
+
+    fn next_evm_env_without_limits(
         &self,
         parent: &Header,
         attributes: &Self::NextBlockEnvCtx,
@@ -180,8 +184,7 @@ where
             self.chain_spec().next_block_base_fee(parent, attributes.timestamp).unwrap_or_default(),
             self.chain_spec(),
             self.chain_spec().chain().id(),
-        )
-        .with_limits(self.chain_spec().evm_limit_params_at_timestamp(attributes.timestamp)))
+        ))
     }
 
     fn context_for_block(
@@ -258,8 +261,7 @@ where
             blob_excess_gas_and_price,
         };
 
-        Ok(EvmEnv { cfg_env, block_env }
-            .with_limits(self.chain_spec().evm_limit_params_at_timestamp(timestamp)))
+        Ok(EvmEnv { cfg_env, block_env }.with_limits(self.evm_limit_params_at_timestamp(timestamp)))
     }
 
     fn context_for_payload<'a>(

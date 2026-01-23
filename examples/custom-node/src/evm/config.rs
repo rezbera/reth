@@ -20,7 +20,7 @@ use reth_ethereum::{
 use reth_node_builder::{ConfigureEngineEvm, NewPayloadError};
 use reth_op::{
     chainspec::OpHardforks,
-    evm::primitives::{EvmEnvFor, ExecutionCtxFor},
+    evm::primitives::{EvmEnvFor, EvmLimitParams, ExecutionCtxFor, NextBlockTimestamp},
     node::{OpEvmConfig, OpNextBlockEnvAttributes, OpRethReceiptBuilder},
     primitives::SignedTransaction,
 };
@@ -63,16 +63,23 @@ impl ConfigureEvm for CustomEvmConfig {
         &self.block_assembler
     }
 
-    fn evm_env(&self, header: &CustomHeader) -> Result<EvmEnv<OpSpecId>, Self::Error> {
-        self.inner.evm_env(header)
+    fn evm_limit_params_at_timestamp(&self, timestamp: u64) -> EvmLimitParams {
+        self.inner.evm_limit_params_at_timestamp(timestamp)
     }
 
-    fn next_evm_env(
+    fn evm_env_without_limits(
+        &self,
+        header: &CustomHeader,
+    ) -> Result<EvmEnv<OpSpecId>, Self::Error> {
+        self.inner.evm_env_without_limits(header)
+    }
+
+    fn next_evm_env_without_limits(
         &self,
         parent: &CustomHeader,
         attributes: &CustomNextBlockEnvAttributes,
     ) -> Result<EvmEnv<OpSpecId>, Self::Error> {
-        self.inner.next_evm_env(parent, &attributes.inner)
+        self.inner.next_evm_env_without_limits(parent, &attributes.inner)
     }
 
     fn context_for_block(
@@ -149,6 +156,12 @@ pub struct CustomNextBlockEnvAttributes {
 impl From<OpFlashblockPayloadBase> for CustomNextBlockEnvAttributes {
     fn from(value: OpFlashblockPayloadBase) -> Self {
         Self { inner: value.into(), extension: 0 }
+    }
+}
+
+impl NextBlockTimestamp for CustomNextBlockEnvAttributes {
+    fn timestamp(&self) -> u64 {
+        self.inner.timestamp
     }
 }
 

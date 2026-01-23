@@ -13,7 +13,7 @@ use reth_evm::{
     },
     eth::{EthBlockExecutionCtx, EthEvmContext, EthTxResult},
     ConfigureEngineEvm, ConfigureEvm, Database, EthEvm, EthEvmFactory, Evm, EvmEnvFor, EvmFactory,
-    ExecutableTxIterator, ExecutionCtxFor, RecoveredTx,
+    EvmLimitParams, ExecutableTxIterator, ExecutionCtxFor, RecoveredTx,
 };
 use reth_execution_types::{BlockExecutionResult, ExecutionOutcome};
 use reth_primitives_traits::{BlockTy, SealedBlock, SealedHeader};
@@ -172,16 +172,20 @@ impl ConfigureEvm for MockEvmConfig {
         self.inner.block_assembler()
     }
 
-    fn evm_env(&self, header: &Header) -> Result<EvmEnvFor<Self>, Self::Error> {
-        self.inner.evm_env(header)
+    fn evm_limit_params_at_timestamp(&self, timestamp: u64) -> EvmLimitParams {
+        self.inner.evm_limit_params_at_timestamp(timestamp)
     }
 
-    fn next_evm_env(
+    fn evm_env_without_limits(&self, header: &Header) -> Result<EvmEnvFor<Self>, Self::Error> {
+        self.inner.evm_env_without_limits(header)
+    }
+
+    fn next_evm_env_without_limits(
         &self,
         parent: &Header,
         attributes: &Self::NextBlockEnvCtx,
     ) -> Result<EvmEnvFor<Self>, Self::Error> {
-        self.inner.next_evm_env(parent, attributes)
+        self.inner.next_evm_env_without_limits(parent, attributes)
     }
 
     fn context_for_block<'a>(

@@ -2,6 +2,7 @@ pub use alloy_op_evm::{
     spec as revm_spec, spec_by_timestamp_after_bedrock as revm_spec_by_timestamp_after_bedrock,
 };
 use op_alloy_rpc_types_engine::OpFlashblockPayloadBase;
+use reth_evm::NextBlockTimestamp;
 use revm::primitives::{Address, Bytes, B256};
 
 /// Context relevant for execution of a next block w.r.t OP.
@@ -47,5 +48,11 @@ impl From<OpFlashblockPayloadBase> for OpNextBlockEnvAttributes {
             parent_beacon_block_root: Some(base.parent_beacon_block_root),
             extra_data: base.extra_data,
         }
+    }
+}
+
+impl NextBlockTimestamp for OpNextBlockEnvAttributes {
+    fn timestamp(&self) -> u64 {
+        self.timestamp
     }
 }

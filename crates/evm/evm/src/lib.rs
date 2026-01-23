@@ -58,8 +58,25 @@ pub mod test_utils;
 
 pub use alloy_evm::{
     block::{state_changes, system_calls, OnStateHook},
-    *,
+    EvmLimitParams, *,
 };
+
+use alloy_consensus::BlockHeader as AlloyBlockHeader;
+
+/// Trait for accessing the timestamp from next block environment attributes.
+///
+/// This enables default implementations in [`ConfigureEvm`] that automatically
+/// apply EVM limits based on the timestamp.
+pub trait NextBlockTimestamp {
+    /// Returns the timestamp of the next block.
+    fn timestamp(&self) -> u64;
+}
+
+impl NextBlockTimestamp for NextBlockEnvAttributes {
+    fn timestamp(&self) -> u64 {
+        self.timestamp
+    }
+}
 
 /// A complete configuration of EVM for Reth.
 ///
@@ -191,7 +208,9 @@ pub trait ConfigureEvm: Clone + Debug + Send + Sync + Unpin {
     /// Context required for configuring next block environment.
     ///
     /// Contains values that can't be derived from the parent block.
-    type NextBlockEnvCtx: Debug + Clone;
+    /// Must implement [`NextBlockTimestamp`] to enable default implementation
+    /// of [`Self::next_evm_env`] that automatically applies EVM limits.
+    type NextBlockEnvCtx: Debug + Clone + NextBlockTimestamp;
 
     /// Configured [`BlockExecutorFactory`], contains [`EvmFactory`] internally.
     type BlockExecutorFactory: for<'a> BlockExecutorFactory<
@@ -218,14 +237,53 @@ pub trait ConfigureEvm: Clone + Debug + Send + Sync + Unpin {
     /// Returns reference to the configured [`BlockAssembler`].
     fn block_assembler(&self) -> &Self::BlockAssembler;
 
-    /// Creates a new [`EvmEnv`] for the given header.
-    fn evm_env(&self, header: &HeaderTy<Self::Primitives>) -> Result<EvmEnvFor<Self>, Self::Error>;
+    /// Returns the EVM limit parameters for the given timestamp.
+    ///
+    /// This includes max code size, max initcode size, and transaction gas limit cap.
+    /// This is the single source of truth for EVM limits, ensuring consistency
+    /// between mempool validation and EVM execution.
+    fn evm_limit_params_at_timestamp(&self, timestamp: u64) -> EvmLimitParams;
 
-    /// Returns the configured [`EvmEnv`] for `parent + 1` block.
+    /// Creates a new [`EvmEnv`] for the given header without applying EVM limits.
+    ///
+    /// Implementors should return the base EVM environment. The [`Self::evm_env`] method
+    /// will automatically apply limits from [`Self::evm_limit_params_at_timestamp`].
+    fn evm_env_without_limits(
+        &self,
+        header: &HeaderTy<Self::Primitives>,
+    ) -> Result<EvmEnvFor<Self>, Self::Error>;
+
+    /// Creates a new [`EvmEnv`] for the given header with EVM limits applied.
+    ///
+    /// This is the public interface that should be used by callers. It internally calls
+    /// [`Self::evm_env_without_limits`] and applies limits from
+    /// [`Self::evm_limit_params_at_timestamp`].
+    fn evm_env(&self, header: &HeaderTy<Self::Primitives>) -> Result<EvmEnvFor<Self>, Self::Error>
+    where
+        HeaderTy<Self::Primitives>: AlloyBlockHeader,
+    {
+        self.evm_env_without_limits(header)
+            .map(|env| env.with_limits(self.evm_limit_params_at_timestamp(header.timestamp())))
+    }
+
+    /// Returns the configured [`EvmEnv`] for `parent + 1` block without applying EVM limits.
+    ///
+    /// Implementors should return the base EVM environment. The [`Self::next_evm_env`] method
+    /// will automatically apply limits from [`Self::evm_limit_params_at_timestamp`].
+    fn next_evm_env_without_limits(
+        &self,
+        parent: &HeaderTy<Self::Primitives>,
+        attributes: &Self::NextBlockEnvCtx,
+    ) -> Result<EvmEnvFor<Self>, Self::Error>;
+
+    /// Returns the configured [`EvmEnv`] for `parent + 1` block with EVM limits applied.
     ///
     /// This is intended for usage in block building after the merge and requires additional
     /// attributes that can't be derived from the parent block: attributes that are determined by
     /// the CL, such as the timestamp, suggested fee recipient, and randomness value.
+    ///
+    /// The default implementation calls [`Self::next_evm_env_without_limits`] and applies EVM
+    /// limits from [`Self::evm_limit_params_at_timestamp`].
     ///
     /// # Example
     ///
@@ -235,12 +293,16 @@ pub trait ConfigureEvm: Clone + Debug + Send + Sync + Unpin {
     /// // - Correct spec ID based on timestamp and block number
     /// // - Block environment with next block's parameters
     /// // - Configuration like chain ID and blob parameters
+    /// // - EVM limits (max code size, initcode size, tx gas limit cap)
     /// ```
     fn next_evm_env(
         &self,
         parent: &HeaderTy<Self::Primitives>,
         attributes: &Self::NextBlockEnvCtx,
-    ) -> Result<EvmEnvFor<Self>, Self::Error>;
+    ) -> Result<EvmEnvFor<Self>, Self::Error> {
+        self.next_evm_env_without_limits(parent, attributes)
+            .map(|env| env.with_limits(self.evm_limit_params_at_timestamp(attributes.timestamp())))
+    }
 
     /// Returns the configured [`BlockExecutorFactory::ExecutionCtx`] for a given block.
     fn context_for_block<'a>(

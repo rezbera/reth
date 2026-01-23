@@ -1,6 +1,6 @@
 //! Helpers for testing.
 
-use crate::{ConfigureEvm, EvmEnvFor};
+use crate::{ConfigureEvm, EvmEnvFor, EvmLimitParams};
 use reth_primitives_traits::{BlockTy, HeaderTy, SealedBlock, SealedHeader};
 
 /// A no-op EVM config that panics on any call. Used as a typesystem hack to satisfy
@@ -43,16 +43,23 @@ where
         self.inner().block_assembler()
     }
 
-    fn evm_env(&self, header: &HeaderTy<Self::Primitives>) -> Result<EvmEnvFor<Self>, Self::Error> {
-        self.inner().evm_env(header)
+    fn evm_limit_params_at_timestamp(&self, timestamp: u64) -> EvmLimitParams {
+        self.inner().evm_limit_params_at_timestamp(timestamp)
     }
 
-    fn next_evm_env(
+    fn evm_env_without_limits(
+        &self,
+        header: &HeaderTy<Self::Primitives>,
+    ) -> Result<EvmEnvFor<Self>, Self::Error> {
+        self.inner().evm_env_without_limits(header)
+    }
+
+    fn next_evm_env_without_limits(
         &self,
         parent: &HeaderTy<Self::Primitives>,
         attributes: &Self::NextBlockEnvCtx,
     ) -> Result<EvmEnvFor<Self>, Self::Error> {
-        self.inner().next_evm_env(parent, attributes)
+        self.inner().next_evm_env_without_limits(parent, attributes)
     }
 
     fn context_for_block<'a>(

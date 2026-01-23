@@ -19,7 +19,7 @@ use reth_ethereum::{
     evm::{
         primitives::{
             execute::{BlockExecutionError, BlockExecutor, InternalBlockExecutionError},
-            Database, Evm, EvmEnv, EvmEnvFor, ExecutionCtxFor, InspectorFor,
+            Database, Evm, EvmEnv, EvmEnvFor, EvmLimitParams, ExecutionCtxFor, InspectorFor,
             NextBlockEnvAttributes, OnStateHook,
         },
         revm::{
@@ -135,16 +135,20 @@ impl ConfigureEvm for CustomEvmConfig {
         self.inner.block_assembler()
     }
 
-    fn evm_env(&self, header: &Header) -> Result<EvmEnv<SpecId>, Self::Error> {
-        self.inner.evm_env(header)
+    fn evm_limit_params_at_timestamp(&self, timestamp: u64) -> EvmLimitParams {
+        self.inner.evm_limit_params_at_timestamp(timestamp)
     }
 
-    fn next_evm_env(
+    fn evm_env_without_limits(&self, header: &Header) -> Result<EvmEnv<SpecId>, Self::Error> {
+        self.inner.evm_env_without_limits(header)
+    }
+
+    fn next_evm_env_without_limits(
         &self,
         parent: &Header,
         attributes: &NextBlockEnvAttributes,
     ) -> Result<EvmEnv<SpecId>, Self::Error> {
-        self.inner.next_evm_env(parent, attributes)
+        self.inner.next_evm_env_without_limits(parent, attributes)
     }
 
     fn context_for_block<'a>(
