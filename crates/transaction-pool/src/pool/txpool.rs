@@ -4790,4 +4790,107 @@ mod tests {
         assert_eq!(t2.id().nonce, 2, "expected nonce 2, got {}", t2.id().nonce);
         assert_eq!(t3.id().nonce, 3, "expected nonce 3, got {}", t3.id().nonce);
     }
+
+    /// Regression test: a prune-induced gap in `pending_pool.by_id` must not
+    /// corrupt the sender's cached lowest-pending-nonce, which
+    /// `best_transactions_with_attributes` uses to seed its iterator.
+    ///
+    /// Production failure mode observed on the conduit-rust flashblocks
+    /// builder: the builder prunes transactions out of order across flashblocks
+    /// in the same block. When the immediate descendant of a "lowest" pending
+    /// tx had already been pruned earlier, the pre-fix
+    /// `PendingPool::remove_transaction` advanced `independent_transactions`
+    /// via `get(&id.descendant())`, which silently returned `None` across the
+    /// prune-induced gap and CLEARED the cache, even though the sender still
+    /// had pending transactions at higher nonces.
+    ///
+    /// With the cache cleared, `pending_pool.best()` seeded
+    /// `BestTransactions.independent` from an empty set for that sender, so
+    /// every subsequent `best_transactions_with_attributes(..).next()` yielded
+    /// nothing for the sender (or, in deeper-churn variants of the same root
+    /// cause, yielded a nonce far above the on-chain nonce that the EVM then
+    /// rejected as `nonce too high`).
+    ///
+    /// This test drives the failure end-to-end through `TxPool`'s public API
+    /// (`add_transaction`, `prune_transactions`,
+    /// `best_transactions_with_attributes`) and asserts on the observable
+    /// behaviour of the best-transactions iterator.
+    #[test]
+    fn test_best_transactions_recovers_after_prune_induced_gap() {
+        let mut f = MockTransactionFactory::default();
+        let mut pool = TxPool::new(MockOrdering::default(), Default::default());
+
+        // 5 consecutive pending txs from a single sender, all funded.
+        let sender = address!("0x000000000000000000000000000000000000beef");
+        let txs = MockTransactionSet::dependent(sender, 0, 5, TxType::Eip1559)
+            .into_vec()
+            .into_iter()
+            .map(|tx| tx.inc_price().inc_limit())
+            .collect::<Vec<_>>();
+        let hashes: Vec<_> = txs
+            .iter()
+            .map(|tx| {
+                let validated = f.validated(tx.clone());
+                let hash = *validated.hash();
+                pool.add_transaction(validated, U256::MAX, 0, None).unwrap();
+                hash
+            })
+            .collect();
+
+        let sender_id = f.ids.sender_id(&sender).unwrap();
+        assert_eq!(pool.pending_pool.len(), 5, "all 5 txs should be in pending");
+        assert_eq!(
+            pool.pending_pool.independent().get(&sender_id).map(|tx| tx.transaction.nonce()),
+            Some(0),
+            "cached lowest pending nonce should be 0 before any prunes",
+        );
+
+        // Prune the mid-chain tx at nonce 1. `prune_transactions` removes the
+        // tx from `all_transactions` and from its subpool without parking
+        // descendants, so nonces 2..=4 stay in `pending_pool.by_id`. This
+        // leaves a gap in `by_id` at nonce 1, even though the cached lowest
+        // (nonce 0) is unaffected.
+        let pruned_mid = pool.prune_transactions(vec![hashes[1]]);
+        assert_eq!(pruned_mid.len(), 1, "nonce 1 must be pruned");
+        assert_eq!(pool.pending_pool.len(), 4);
+
+        // Now prune the tx at nonce 0 (the cached lowest). This drives
+        // `PendingPool::remove_transaction(&id0)` with `cache.lowest == id0`.
+        // Pre-fix, the cache advanced via `get(id0.descendant())`, which looks
+        // up id1 — but id1 was pruned in the previous step, so the lookup
+        // returned `None` and the cache was cleared entirely. With the fix,
+        // the cache is recomputed via a `by_id` range scan and correctly
+        // advances to id2.
+        let pruned_lowest = pool.prune_transactions(vec![hashes[0]]);
+        assert_eq!(pruned_lowest.len(), 1, "nonce 0 must be pruned");
+        assert_eq!(pool.pending_pool.len(), 3);
+
+        // The cached lowest must point at nonce 2 (the actual lowest still in
+        // `pending_pool.by_id`). Pre-fix this assertion fails — the cache is
+        // empty for this sender.
+        let cached_lowest =
+            pool.pending_pool.independent().get(&sender_id).map(|tx| tx.transaction.nonce());
+        assert_eq!(
+            cached_lowest,
+            Some(2),
+            "independent_transactions cache must advance past the prune-induced gap",
+        );
+
+        // End-to-end: `best_transactions_with_attributes` seeds its iterator
+        // from the per-sender cached lowest. Pre-fix, this yields nothing for
+        // this sender even though `by_id` still has nonces 2..=4, and the
+        // builder produces an empty block.
+        let attrs = BestTransactionsAttributes::base_fee(pool.block_info().pending_basefee);
+        let next = pool
+            .best_transactions_with_attributes(attrs)
+            .next()
+            .expect("pending pool still has 3 txs for this sender; best should yield one");
+        assert_eq!(
+            next.id().nonce,
+            2,
+            "best_transactions must yield the lowest pending nonce still in by_id",
+        );
+
+        pool.assert_invariants();
+    }
 }
