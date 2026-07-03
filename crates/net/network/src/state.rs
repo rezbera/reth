@@ -135,6 +135,16 @@ impl<N: NetworkPrimitives> NetworkState<N> {
         self.state_fetcher.client()
     }
 
+    /// Sets the body download override consulted by [`FetchClient`]s created after this call.
+    pub(crate) fn set_bodies_request_override(
+        &mut self,
+        bodies_override: std::sync::Arc<
+            dyn reth_network_p2p::bodies::client::BodiesRequestOverride<N::BlockBody>,
+        >,
+    ) {
+        self.state_fetcher.set_bodies_request_override(bodies_override);
+    }
+
     /// How many peers we're currently connected to.
     pub fn num_active_peers(&self) -> usize {
         self.active_peers.len()

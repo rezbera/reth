@@ -64,6 +64,25 @@ pub trait BodiesClient: DownloadClient {
     }
 }
 
+/// A dyn-safe hook that can intercept block body downloads before the default request path.
+///
+/// Installed on the network's fetch client (see `FetchClient::with_bodies_request_override`),
+/// this lets an embedder route body downloads through an alternative transport (e.g. a custom
+/// RLPx subprotocol without the 16 MiB devp2p payload cap). Resolving to `None` falls back to
+/// the default `eth` request path for that request.
+pub trait BodiesRequestOverride<B>: Send + Sync + std::fmt::Debug + 'static {
+    /// Attempts to fetch the bodies for the given hashes.
+    ///
+    /// Resolve to `None` to fall back to the default path. A resolved response follows `eth`
+    /// semantics: bodies in request order, possibly a non-empty prefix of the request.
+    fn get_block_bodies_with_priority_and_range_hint(
+        &self,
+        hashes: Vec<B256>,
+        priority: Priority,
+        range_hint: Option<RangeInclusive<u64>>,
+    ) -> Pin<Box<dyn Future<Output = Option<PeerRequestResult<Vec<B>>>> + Send + Sync>>;
+}
+
 /// A Future that resolves to a single block body.
 #[derive(Debug)]
 #[must_use = "futures do nothing unless polled"]

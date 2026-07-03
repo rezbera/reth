@@ -18,6 +18,7 @@ use reth_eth_wire::{
 };
 use reth_eth_wire_types::message::MAX_MESSAGE_SIZE;
 use reth_ethereum_forks::{ForkFilter, Head};
+use reth_network_p2p::bodies::client::BodiesRequestOverride;
 use reth_network_peers::{mainnet_nodes, pk2id, sepolia_nodes, PeerId, TrustedPeer};
 use reth_network_types::{PeersConfig, SessionsConfig};
 use reth_storage_api::{
@@ -86,6 +87,11 @@ pub struct NetworkConfig<C, N: NetworkPrimitives = EthNetworkPrimitives> {
     pub hello_message: HelloMessageWithProtocols,
     /// Additional protocols to announce and handle in `RLPx`
     pub extra_protocols: RlpxSubProtocols,
+    /// Optional hook consulted before the default `eth` path for body downloads.
+    ///
+    /// Lets an embedder route body downloads through an alternative transport, e.g. a custom
+    /// RLPx subprotocol or an out-of-band service without the 16 MiB devp2p payload cap.
+    pub bodies_override: Option<Arc<dyn BodiesRequestOverride<N::BlockBody>>>,
     /// Whether to disable transaction gossip
     pub tx_gossip_disabled: bool,
     /// How to instantiate transactions manager.
@@ -209,6 +215,8 @@ pub struct NetworkConfigBuilder<N: NetworkPrimitives = EthNetworkPrimitives> {
     hello_message: Option<HelloMessageWithProtocols>,
     /// The executor to use for spawning tasks.
     extra_protocols: RlpxSubProtocols,
+    /// Optional hook consulted before the default `eth` path for body downloads.
+    bodies_override: Option<Arc<dyn BodiesRequestOverride<N::BlockBody>>>,
     /// Head used to start set for the fork filter and status.
     head: Option<Head>,
     /// Whether tx gossip is disabled
@@ -262,6 +270,7 @@ impl<N: NetworkPrimitives> NetworkConfigBuilder<N> {
             executor,
             hello_message: None,
             extra_protocols: Default::default(),
+            bodies_override: None,
             head: None,
             tx_gossip_disabled: false,
             block_import: None,
@@ -547,6 +556,19 @@ impl<N: NetworkPrimitives> NetworkConfigBuilder<N> {
         self
     }
 
+    /// Sets a hook consulted before the default `eth` path for body downloads.
+    ///
+    /// Lets an embedder route body downloads through an alternative transport, e.g. a custom
+    /// RLPx subprotocol or an out-of-band service without the 16 MiB devp2p payload cap.
+    /// Resolving to `None` falls back to the default `eth` request path per request.
+    pub fn with_bodies_request_override(
+        mut self,
+        bodies_override: Arc<dyn BodiesRequestOverride<N::BlockBody>>,
+    ) -> Self {
+        self.bodies_override = Some(bodies_override);
+        self
+    }
+
     /// Sets whether tx gossip is disabled.
     pub const fn disable_tx_gossip(mut self, disable_tx_gossip: bool) -> Self {
         self.tx_gossip_disabled = disable_tx_gossip;
@@ -638,6 +660,7 @@ impl<N: NetworkPrimitives> NetworkConfigBuilder<N> {
             executor,
             hello_message,
             extra_protocols,
+            bodies_override,
             head,
             tx_gossip_disabled,
             block_import,
@@ -720,6 +743,7 @@ impl<N: NetworkPrimitives> NetworkConfigBuilder<N> {
             status,
             hello_message,
             extra_protocols,
+            bodies_override,
             fork_filter,
             tx_gossip_disabled,
             transactions_manager_config,

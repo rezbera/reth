@@ -7,7 +7,7 @@ use reth_eth_wire::{BlockAccessLists, EthNetworkPrimitives, NetworkPrimitives};
 use reth_network_api::test_utils::PeersHandle;
 use reth_network_p2p::{
     block_access_lists::client::{BalRequirement, BlockAccessListsClient},
-    bodies::client::{BodiesClient, BodiesFut},
+    bodies::client::{BodiesClient, BodiesFut, BodiesRequestOverride},
     download::DownloadClient,
     error::{PeerRequestResult, RequestError},
     headers::client::{HeadersClient, HeadersRequest},
@@ -41,6 +41,8 @@ pub struct FetchClient<N: NetworkPrimitives = EthNetworkPrimitives> {
     pub(crate) peers_handle: PeersHandle,
     /// Number of active peer sessions the node's currently handling.
     pub(crate) num_active_peers: Arc<AtomicUsize>,
+    /// Optional hook consulted before the default `eth` path for body downloads.
+    pub(crate) bodies_override: Option<Arc<dyn BodiesRequestOverride<N::BlockBody>>>,
 }
 
 impl<N: NetworkPrimitives> DownloadClient for FetchClient<N> {
@@ -80,17 +82,14 @@ impl<N: NetworkPrimitives> HeadersClient for FetchClient<N> {
     }
 }
 
-impl<N: NetworkPrimitives> BodiesClient for FetchClient<N> {
-    type Body = N::BlockBody;
-    type Output = BodiesFut<N::BlockBody>;
-
-    /// Sends a `GetBlockBodies` request to an available peer.
-    fn get_block_bodies_with_priority_and_range_hint(
+impl<N: NetworkPrimitives> FetchClient<N> {
+    /// Sends a `GetBlockBodies` request to an available peer via the default `eth` path.
+    fn eth_get_block_bodies(
         &self,
         request: Vec<B256>,
         priority: Priority,
         range_hint: Option<RangeInclusive<u64>>,
-    ) -> Self::Output {
+    ) -> BodiesFut<N::BlockBody> {
         let (response, rx) = oneshot::channel();
         if self
             .request_tx
@@ -101,6 +100,36 @@ impl<N: NetworkPrimitives> BodiesClient for FetchClient<N> {
         } else {
             Box::pin(future::err(RequestError::ChannelClosed))
         }
+    }
+}
+
+impl<N: NetworkPrimitives> BodiesClient for FetchClient<N> {
+    type Body = N::BlockBody;
+    type Output = BodiesFut<N::BlockBody>;
+
+    /// Sends a `GetBlockBodies` request to an available peer, consulting the configured
+    /// override first, if any.
+    fn get_block_bodies_with_priority_and_range_hint(
+        &self,
+        request: Vec<B256>,
+        priority: Priority,
+        range_hint: Option<RangeInclusive<u64>>,
+    ) -> Self::Output {
+        if let Some(bodies_override) = &self.bodies_override {
+            let override_fut = bodies_override.get_block_bodies_with_priority_and_range_hint(
+                request.clone(),
+                priority,
+                range_hint.clone(),
+            );
+            let this = self.clone();
+            return Box::pin(async move {
+                if let Some(result) = override_fut.await {
+                    return result;
+                }
+                this.eth_get_block_bodies(request, priority, range_hint).await
+            });
+        }
+        self.eth_get_block_bodies(request, priority, range_hint)
     }
 }
 

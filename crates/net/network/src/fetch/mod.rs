@@ -14,6 +14,7 @@ use reth_eth_wire::{
 use reth_network_api::test_utils::PeersHandle;
 use reth_network_p2p::{
     block_access_lists::client::BalRequirement,
+    bodies::client::BodiesRequestOverride,
     error::{EthResponseValidator, PeerRequestResult, RequestError, RequestResult},
     headers::client::HeadersRequest,
     priority::Priority,
@@ -66,6 +67,9 @@ pub struct StateFetcher<N: NetworkPrimitives = EthNetworkPrimitives> {
     download_requests_rx: UnboundedReceiverStream<DownloadRequest<N>>,
     /// Sender for download requests, used to detach a [`FetchClient`]
     download_requests_tx: UnboundedSender<DownloadRequest<N>>,
+    /// Optional hook consulted by detached [`FetchClient`]s before the default `eth` path for
+    /// body downloads.
+    bodies_override: Option<Arc<dyn BodiesRequestOverride<N::BlockBody>>>,
 }
 
 // === impl StateSyncer ===
@@ -84,6 +88,7 @@ impl<N: NetworkPrimitives> StateFetcher<N> {
             queued_requests: Default::default(),
             download_requests_rx: UnboundedReceiverStream::new(download_requests_rx),
             download_requests_tx,
+            bodies_override: None,
         }
     }
 
@@ -460,7 +465,17 @@ impl<N: NetworkPrimitives> StateFetcher<N> {
             request_tx: self.download_requests_tx.clone(),
             peers_handle: self.peers_handle.clone(),
             num_active_peers: Arc::clone(&self.num_active_peers),
+            bodies_override: self.bodies_override.clone(),
         }
+    }
+
+    /// Sets the override consulted by [`FetchClient`]s created after this call for body
+    /// downloads.
+    pub(crate) fn set_bodies_request_override(
+        &mut self,
+        bodies_override: Arc<dyn BodiesRequestOverride<N::BlockBody>>,
+    ) {
+        self.bodies_override = Some(bodies_override);
     }
 }
 

@@ -256,6 +256,7 @@ impl<N: NetworkPrimitives> NetworkManager<N> {
             fork_filter,
             dns_discovery_config,
             extra_protocols,
+            bodies_override,
             tx_gossip_disabled,
             transactions_manager_config: _,
             nat,
@@ -320,12 +321,16 @@ impl<N: NetworkPrimitives> NetworkManager<N> {
             network_mode.is_stake(),
         );
 
-        let state = NetworkState::new(
+        let mut state = NetworkState::new(
             crate::state::BlockNumReader::new(client),
             discovery,
             peers_manager,
             Arc::clone(&num_active_peers),
         );
+
+        if let Some(bodies_override) = bodies_override {
+            state.set_bodies_request_override(bodies_override);
+        }
 
         let swarm = Swarm::new(incoming, sessions, state);
 
