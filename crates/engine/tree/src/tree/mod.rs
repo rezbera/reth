@@ -1490,22 +1490,20 @@ where
         self.persistence_state.finish(last_persisted_block_hash, last_persisted_block_number);
 
         // Evict trie changesets for blocks below the eviction threshold.
-        // Keep at least CHANGESET_CACHE_RETENTION_BLOCKS from the persisted tip, and also respect
-        // the finalized block if set.
+        // Keep at least CHANGESET_CACHE_RETENTION_BLOCKS from the persisted tip, and retain all
+        // blocks newer than the safe head so unsafe reorgs stay on the in-memory fast path.
         let min_threshold =
             last_persisted_block_number.saturating_sub(CHANGESET_CACHE_RETENTION_BLOCKS);
         let eviction_threshold =
-            if let Some(finalized) = self.canonical_in_memory_state.get_finalized_num_hash() {
-                // Use the minimum of finalized block and retention threshold to be conservative
-                finalized.number.min(min_threshold)
+            if let Some(safe) = self.canonical_in_memory_state.get_safe_num_hash() {
+                safe.number.min(min_threshold)
             } else {
-                // When finalized is not set (e.g., on L2s), use the retention threshold
                 min_threshold
             };
         debug!(
             target: "engine::tree",
             last_persisted = last_persisted_block_number,
-            finalized_number = ?self.canonical_in_memory_state.get_finalized_num_hash().map(|f| f.number),
+            safe_number = ?self.canonical_in_memory_state.get_safe_num_hash().map(|s| s.number),
             eviction_threshold,
             "Evicting changesets below threshold"
         );
