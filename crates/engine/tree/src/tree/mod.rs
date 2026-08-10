@@ -90,11 +90,10 @@ pub mod state;
 /// backfill this gap.
 pub(crate) const MIN_BLOCKS_FOR_PIPELINE_RUN: u64 = EPOCH_SLOTS;
 
-/// The minimum number of blocks to retain in the changeset cache after eviction.
+/// The maximum number of persisted blocks to retain in the changeset cache after eviction.
 ///
-/// This ensures that recent trie changesets are kept in memory for potential reorgs,
-/// even when the finalized block is not set (e.g., on L2s like Optimism).
-const CHANGESET_CACHE_RETENTION_BLOCKS: u64 = 64;
+/// Deeper reorgs fall back to recomputing changesets from the database.
+const CHANGESET_CACHE_RETENTION_BLOCKS: u64 = 10;
 
 /// A builder for creating state providers that can be used across threads.
 #[derive(Clone, Debug)]
@@ -1489,16 +1488,15 @@ where
         debug!(target: "engine::tree", ?last_persisted_block_hash, ?last_persisted_block_number, elapsed=?start_time.elapsed(), "Finished persisting, calling finish");
         self.persistence_state.finish(last_persisted_block_hash, last_persisted_block_number);
 
-        // Evict trie changesets for blocks below the eviction threshold.
-        // Keep at least CHANGESET_CACHE_RETENTION_BLOCKS from the persisted tip, and retain all
-        // blocks newer than the safe head so unsafe reorgs stay on the in-memory fast path.
-        let min_threshold =
+        // Retain the smaller of the configured window and the safe-head window. Never evict above
+        // the persisted tip because those changesets cannot yet be recomputed from the database.
+        let retention_threshold =
             last_persisted_block_number.saturating_sub(CHANGESET_CACHE_RETENTION_BLOCKS);
         let eviction_threshold =
             if let Some(safe) = self.canonical_in_memory_state.get_safe_num_hash() {
-                safe.number.min(min_threshold)
+                safe.number.min(last_persisted_block_number).max(retention_threshold)
             } else {
-                min_threshold
+                retention_threshold
             };
         debug!(
             target: "engine::tree",
