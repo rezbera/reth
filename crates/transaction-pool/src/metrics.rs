@@ -13,6 +13,8 @@ pub struct TxPoolMetrics {
     pub inserted_transactions: Counter,
     /// Number of invalid transactions
     pub invalid_transactions: Counter,
+    /// Number of validation results based on stale account state
+    pub stale_validation_results: Counter,
     /// Number of removed transactions from the pool
     pub removed_transactions: Counter,
 

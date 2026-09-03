@@ -748,6 +748,7 @@ impl<T: TransactionOrdering> TxPool<T> {
         if let Some(info) = self.all_transactions.sender_info.get(&tx.sender_id()) &&
             info.state_nonce > on_chain_nonce
         {
+            self.metrics.stale_validation_results.increment(1);
             on_chain_nonce = info.state_nonce;
             on_chain_balance = info.balance;
         }
