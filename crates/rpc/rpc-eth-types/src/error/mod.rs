@@ -1013,6 +1013,9 @@ pub enum RpcPoolError {
     /// When the transaction pool is full
     #[error("txpool is full")]
     TxPoolOverflow,
+    /// When the transaction was validated against older sender state
+    #[error("transaction validation result is stale")]
+    StaleValidation,
     /// When the replacement transaction is underpriced
     #[error("replacement transaction underpriced")]
     ReplaceUnderpriced,
@@ -1072,7 +1075,7 @@ impl From<RpcPoolError> for jsonrpsee_types::error::ErrorObject<'static> {
     fn from(error: RpcPoolError) -> Self {
         match error {
             RpcPoolError::Invalid(err) => err.into(),
-            RpcPoolError::TxPoolOverflow => {
+            RpcPoolError::TxPoolOverflow | RpcPoolError::StaleValidation => {
                 rpc_error_with_code(EthRpcErrorCode::TransactionRejected.code(), error.to_string())
             }
             RpcPoolError::AlreadyKnown |
@@ -1100,6 +1103,7 @@ impl From<PoolError> for RpcPoolError {
     fn from(err: PoolError) -> Self {
         match err.kind {
             PoolErrorKind::ReplacementUnderpriced => Self::ReplaceUnderpriced,
+            PoolErrorKind::StaleValidation => Self::StaleValidation,
             PoolErrorKind::FeeCapBelowMinimumProtocolFeeCap(_) => Self::Underpriced,
             PoolErrorKind::SpammerExceededCapacity(_) | PoolErrorKind::DiscardedOnInsert => {
                 Self::TxPoolOverflow

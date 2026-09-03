@@ -71,6 +71,9 @@ pub enum PoolErrorKind {
     /// Same transaction already imported
     #[error("already imported")]
     AlreadyImported,
+    /// Thrown when the transaction was validated against older sender state.
+    #[error("transaction validation result is stale")]
+    StaleValidation,
     /// Thrown if a replacement transaction's gas price is below the already imported transaction
     #[error("insufficient gas price to replace existing transaction")]
     ReplacementUnderpriced,
@@ -132,6 +135,7 @@ impl PoolError {
                 // already imported but not bad
                 false
             }
+            PoolErrorKind::StaleValidation => false,
             PoolErrorKind::ReplacementUnderpriced => {
                 // already imported but not bad
                 false

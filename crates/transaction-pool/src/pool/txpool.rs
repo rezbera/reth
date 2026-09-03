@@ -746,6 +746,15 @@ impl<T: TransactionOrdering> TxPool<T> {
             return Err(PoolError::new(*tx.hash(), PoolErrorKind::AlreadyImported))
         }
 
+        if self
+            .all_transactions
+            .sender_info
+            .get(&tx.sender_id())
+            .is_some_and(|info| on_chain_nonce < info.state_nonce)
+        {
+            return Err(PoolError::new(*tx.hash(), PoolErrorKind::StaleValidation))
+        }
+
         self.validate_auth(&tx, on_chain_nonce, on_chain_code_hash)?;
 
         // Update sender info with balance and nonce
@@ -3833,6 +3842,26 @@ mod tests {
         let outcome = pool.update_accounts(changed_senders);
         assert_eq!(outcome.discarded.len(), 1);
         assert_eq!(pool.pending_pool.len(), 1);
+    }
+
+    #[test]
+    fn reject_validation_result_older_than_sender_state() {
+        let mut f = MockTransactionFactory::default();
+        let mut pool = TxPool::new(MockOrdering::default(), Default::default());
+
+        let validated = f.validated(MockTransaction::eip1559());
+        let id = *validated.id();
+        let hash = *validated.hash();
+
+        let mut changed_senders = HashMap::default();
+        changed_senders
+            .insert(id.sender, SenderInfo { state_nonce: 1, balance: U256::from(1_000) });
+        pool.update_accounts(changed_senders);
+
+        let err = pool.add_transaction(validated, U256::from(1_000), 0, None).unwrap_err();
+        assert!(matches!(err.kind, PoolErrorKind::StaleValidation));
+        assert!(!pool.contains(&hash));
+        assert_eq!(pool.all_transactions.sender_info[&id.sender].state_nonce, 1);
     }
 
     #[test]
