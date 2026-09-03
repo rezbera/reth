@@ -754,6 +754,7 @@ impl<T: TransactionOrdering> TxPool<T> {
         }
 
         if tx.nonce() < on_chain_nonce {
+            self.metrics.stale_validation_rejections.increment(1);
             return Err(PoolError::new(
                 *tx.hash(),
                 InvalidPoolTransactionError::Consensus(
