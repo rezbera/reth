@@ -13,17 +13,17 @@ workspace = true
 
 [dependencies]
 # reth
-reth-chain-state.workspace = true
-reth-ethereum-primitives.workspace = true
-reth-chainspec.workspace = true
-reth-eth-wire-types.workspace = true
-reth-evm.workspace = true
-reth-evm-ethereum.workspace = true
+reth-chain-state = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
+reth-ethereum-primitives = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1", default-features = false }
+reth-chainspec = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1", default-features = false }
+reth-eth-wire-types = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
+reth-evm = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1", default-features = false }
+reth-evm-ethereum = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1", default-features = false }
 reth-primitives-traits.workspace = true
-reth-execution-types.workspace = true
-reth-fs-util.workspace = true
-reth-storage-api.workspace = true
-reth-tasks.workspace = true
+reth-execution-types = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1", default-features = false }
+reth-fs-util = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
+reth-storage-api = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1", default-features = false }
+reth-tasks = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
 revm.workspace = true
 
 # ethereum
@@ -40,7 +40,7 @@ tokio = { workspace = true, features = ["sync"] }
 tokio-stream.workspace = true
 
 # metrics
-reth-metrics.workspace = true
+reth-metrics = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
 metrics.workspace = true
 
 # misc
@@ -63,8 +63,8 @@ proptest = { workspace = true, optional = true }
 proptest-arbitrary-interop = { workspace = true, optional = true }
 
 [dev-dependencies]
-reth-provider = { workspace = true, features = ["test-utils"] }
-reth-tracing.workspace = true
+reth-provider = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1", features = ["test-utils"] }
+reth-tracing = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
 alloy-primitives = { workspace = true, features = ["rand"] }
 paste.workspace = true
 rand.workspace = true
